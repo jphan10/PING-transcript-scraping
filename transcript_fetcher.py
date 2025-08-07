@@ -57,17 +57,54 @@ def extract_transcript_segments(url: str) -> str:
         if response.status_code == 200:
             # Try to find transcript in static HTML
             text = response.text
+            
+            # Look for the transcript API URL in the page data
+            import json
+            if '"TranscriptUrl":"' in text:
+                # Extract the transcript URL from the JSON data
+                start_idx = text.find('"TranscriptUrl":"')
+                if start_idx != -1:
+                    start_idx += len('"TranscriptUrl":"')
+                    end_idx = text.find('"', start_idx)
+                    if end_idx != -1:
+                        transcript_url = text[start_idx:end_idx]
+                        # Replace escaped characters
+                        transcript_url = transcript_url.replace('\\/', '/')
+                        
+                        # Try to fetch the actual transcript
+                        try:
+                            transcript_response = requests.get(transcript_url)
+                            if transcript_response.status_code == 200:
+                                transcript_data = transcript_response.json()
+                                # Extract transcript segments
+                                if 'segments' in transcript_data:
+                                    transcript_text = ""
+                                    for segment in transcript_data['segments']:
+                                        if 'body' in segment:
+                                            transcript_text += segment['body'] + " "
+                                    if len(transcript_text.strip()) > 100:
+                                        return transcript_text.strip()
+                        except Exception as e:
+                            print(f"Transcript API failed: {e}")
+            
+            # Fallback: try to extract from HTML if API fails
             if "Transcript" in text and "Show full transcript" in text:
-                # Simple extraction from HTML
                 start_idx = text.find("Transcript")
                 end_idx = text.find("Show full transcript") 
                 if start_idx != -1 and end_idx != -1:
-                    # This is a basic extraction - might need refinement
                     extracted = text[start_idx:end_idx]
-                    # Clean up HTML tags (basic)
+                    # More aggressive HTML cleaning
                     import re
-                    clean_text = re.sub(r'<[^>]+>', '', extracted)
-                    if len(clean_text.strip()) > 100:  # If we got substantial content
+                    # Remove CSS and JavaScript
+                    clean_text = re.sub(r'<style[^>]*>.*?</style>', '', extracted, flags=re.DOTALL | re.IGNORECASE)
+                    clean_text = re.sub(r'<script[^>]*>.*?</script>', '', clean_text, flags=re.DOTALL | re.IGNORECASE)
+                    # Remove HTML tags
+                    clean_text = re.sub(r'<[^>]+>', '', clean_text)
+                    # Remove CSS classes and IDs
+                    clean_text = re.sub(r'\.css-[^{;]+[{;][^}]*}', '', clean_text)
+                    # Clean up extra whitespace
+                    clean_text = re.sub(r'\s+', ' ', clean_text)
+                    if len(clean_text.strip()) > 100:
                         return clean_text.strip()
     except Exception as e:
         print(f"Requests approach failed: {e}")
