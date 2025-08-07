@@ -64,10 +64,13 @@ for video in videos:
     with col1:
         st.write(f"{video['title']}")
     with col2:
-        download = st.button(f"Download", key=video['id'])
-        if download:
-            transcript = fetch_transcript(video['id'])
-            file_bytes, docx_name = save_transcript_to_docx(transcript, video['title'])
+        if 'download_state' not in st.session_state:
+            st.session_state['download_state'] = {}
+        if st.session_state['download_state'].get(video['id'], False):
+            with st.spinner('Generating transcript and preparing download...'):
+                transcript = fetch_transcript(video['id'])
+                file_bytes, docx_name = save_transcript_to_docx(transcript, video['title'])
+            st.success('Transcript ready!')
             st.download_button(
                 label="Download Transcript (.docx)",
                 data=file_bytes,
@@ -75,3 +78,8 @@ for video in videos:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 key=f"download_{video['id']}"
             )
+            # Reset state after download button is shown
+            st.session_state['download_state'][video['id']] = False
+        else:
+            if st.button(f"Download", key=video['id']):
+                st.session_state['download_state'][video['id']] = True
