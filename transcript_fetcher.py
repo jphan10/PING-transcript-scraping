@@ -40,13 +40,18 @@ def fetch_transcript(video_id):
 
 
 def save_transcript_to_docx(transcript, video_title):
+    # Add two line breaks before every '>>' except at the start
+    import re
+    formatted = re.sub(r"(?!^)>>", "\n\n>>", transcript)
     doc = Document()
-    doc.add_paragraph(transcript)
+    doc.add_paragraph(formatted)
     safe_title = "".join(c for c in video_title if c not in "\\/:*?\"<>|")
     filename = f"{safe_title}.docx"
     temp_path = os.path.join(tempfile.gettempdir(), filename)
     doc.save(temp_path)
-    return temp_path, filename
+    with open(temp_path, "rb") as f:
+        file_bytes = f.read()
+    return file_bytes, filename
 
 
 st.title("YouTube Playlist Transcript Fetcher")
@@ -59,8 +64,14 @@ for video in videos:
     with col1:
         st.write(f"{video['title']}")
     with col2:
-        if st.button(f"Download", key=video['id']):
+        download = st.button(f"Download", key=video['id'])
+        if download:
             transcript = fetch_transcript(video['id'])
-            docx_path, docx_name = save_transcript_to_docx(transcript, video['title'])
-            with open(docx_path, "rb") as f:
-                st.download_button("Download Transcript (.docx)", f, file_name=docx_name)
+            file_bytes, docx_name = save_transcript_to_docx(transcript, video['title'])
+            st.download_button(
+                label="Download Transcript (.docx)",
+                data=file_bytes,
+                file_name=docx_name,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key=f"download_{video['id']}"
+            )
