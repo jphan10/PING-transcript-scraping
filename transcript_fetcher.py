@@ -1,3 +1,4 @@
+
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
@@ -5,11 +6,19 @@ from docx import Document
 import tempfile
 import os
 
-def get_video_ids_from_playlist(url):
+PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLerJdr1xhGiUKMPq3_uhO3HeIGE98CgTy"
+
+
+def get_playlist_videos(url):
     ydl_opts = {'quiet': True, 'extract_flat': True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         playlist_info = ydl.extract_info(url, download=False)
-        return [entry['id'] for entry in playlist_info['entries']]
+        # Return list of dicts with id and title
+        return [
+            {'id': entry['id'], 'title': entry.get('title', entry['id'])}
+            for entry in playlist_info['entries']
+        ]
+
 
 def get_video_title(video_id):
     ydl_opts = {'quiet': True}
@@ -20,6 +29,7 @@ def get_video_title(video_id):
         except:
             return video_id
 
+
 def fetch_transcript(video_id):
     api = YouTubeTranscriptApi()
     try:
@@ -27,6 +37,7 @@ def fetch_transcript(video_id):
         return " ".join([entry.text for entry in transcript])
     except Exception as e:
         return f"[{video_id}] Transcript not available: {e}"
+
 
 def save_transcript_to_docx(transcript, video_title):
     doc = Document()
@@ -37,20 +48,19 @@ def save_transcript_to_docx(transcript, video_title):
     doc.save(temp_path)
     return temp_path, filename
 
+
 st.title("YouTube Playlist Transcript Fetcher")
 
-playlist_url = st.text_input("Enter YouTube Playlist URL:")
+st.write("Episodes in playlist:")
+videos = get_playlist_videos(PLAYLIST_URL)
 
-if st.button("Fetch Transcripts"):
-    if playlist_url:
-        video_ids = get_video_ids_from_playlist(playlist_url)
-        for video_id in video_ids[:1]:  # just latest episode — remove [:1] to get all
-            st.write(f"Fetching transcript for https://www.youtube.com/watch?v={video_id}")
-            transcript = fetch_transcript(video_id)
-            video_title = get_video_title(video_id)
-            st.write(transcript)
-            docx_path, docx_name = save_transcript_to_docx(transcript, video_title)
+for video in videos:
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.write(f"{video['title']}")
+    with col2:
+        if st.button(f"Download", key=video['id']):
+            transcript = fetch_transcript(video['id'])
+            docx_path, docx_name = save_transcript_to_docx(transcript, video['title'])
             with open(docx_path, "rb") as f:
                 st.download_button("Download Transcript (.docx)", f, file_name=docx_name)
-    else:
-        st.warning("Please enter a playlist URL.")
