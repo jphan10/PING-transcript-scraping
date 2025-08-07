@@ -5,10 +5,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import streamlit as st
-from docx import Document
-import tempfile
-import os
 
 RSS_FEED = "https://omny.fm/shows/ping-proving-grounds/playlists/podcast.rss"
 
@@ -26,17 +22,6 @@ def get_latest_episode_from_rss(feed_url=RSS_FEED):
     feed = feedparser.parse(feed_url)
     latest = feed.entries[0]
     return latest.title
-
-# Get all episodes from RSS feed
-def get_all_episodes_from_rss(feed_url=RSS_FEED):
-    feed = feedparser.parse(feed_url)
-    episodes = []
-    for entry in feed.entries:
-        episodes.append({
-            'title': entry.title,
-            'url': generate_episode_url(entry.title)
-        })
-    return episodes
 
 
 def extract_transcript_segments(url: str) -> str:
@@ -72,6 +57,7 @@ def extract_transcript_segments(url: str) -> str:
             # Extract text between markers (skip the "Transcript" word itself)
             transcript_text = all_text[start_index + len(start_marker):end_index].strip()
             print(f"✅ Extracted transcript: {len(transcript_text)} characters")
+            print(transcript_text)
             return transcript_text
         else:
             print("❌ Could not find transcript markers")
@@ -83,51 +69,14 @@ def extract_transcript_segments(url: str) -> str:
     finally:
         driver.quit()
 
-def save_transcript_to_docx(transcript, episode_title):
-    # Add two line breaks before every '>>' except at the start
-    import re
-    formatted = re.sub(r"(?!^)>>", "\n\n>>", transcript)
-    doc = Document()
-    doc.add_paragraph(formatted)
-    safe_title = "".join(c for c in episode_title if c not in "\\/:*?\"<>|")
-    filename = f"{safe_title}.docx"
-    temp_path = os.path.join(tempfile.gettempdir(), filename)
-    doc.save(temp_path)
-    with open(temp_path, "rb") as f:
-        file_bytes = f.read()
-    return file_bytes, filename
 
-# Streamlit App
-st.title("Ping Proving Grounds Transcript Fetcher")
+# Main function
+if __name__ == "__main__":
+    title = get_latest_episode_from_rss()
+    url = generate_episode_url(title)
 
-st.write("Episodes in podcast:")
-episodes = get_all_episodes_from_rss()
+    print(f"🎙️  Title: {title}")
+    print(f"🔗  URL:   {url}")
 
-for episode in episodes:
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st.write(f"{episode['title']}")
-    with col2:
-        if 'download_state' not in st.session_state:
-            st.session_state['download_state'] = {}
-        
-        episode_key = episode['title'].replace(' ', '_').replace(':', '')
-        
-        if st.session_state['download_state'].get(episode_key, False):
-            with st.spinner('Fetching transcript and preparing download...'):
-                transcript = extract_transcript_segments(episode['url'])
-                file_bytes, docx_name = save_transcript_to_docx(transcript, episode['title'])
-            st.success('Transcript ready!')
-            st.download_button(
-                label="Download Transcript (.docx)",
-                data=file_bytes,
-                file_name=docx_name,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key=f"download_{episode_key}"
-            )
-            # Reset state after download button is shown
-            st.session_state['download_state'][episode_key] = False
-        else:
-            if st.button(f"Download", key=episode_key):
-                st.session_state['download_state'][episode_key] = True
-                st.rerun()
+    transcript = extract_transcript_segments(url)
+    print(f"\n📝 Transcript Preview:\n{transcript[:1000]}...\n")
