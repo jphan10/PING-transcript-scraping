@@ -1,7 +1,9 @@
 import re
 import feedparser
+import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -9,6 +11,7 @@ import streamlit as st
 from docx import Document
 import tempfile
 import os
+import subprocess
 
 RSS_FEED = "https://omny.fm/shows/ping-proving-grounds/playlists/podcast.rss"
 
@@ -40,14 +43,57 @@ def get_all_episodes_from_rss(feed_url=RSS_FEED):
 
 
 def extract_transcript_segments(url: str) -> str:
-    # Set up headless Chrome
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    driver = webdriver.Chrome(options=options)
-
+    """
+    Extract transcript using multiple approaches for maximum compatibility
+    """
+    # First try: Simple requests approach (fastest)
     try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            # Try to find transcript in static HTML
+            text = response.text
+            if "Transcript" in text and "Show full transcript" in text:
+                # Simple extraction from HTML
+                start_idx = text.find("Transcript")
+                end_idx = text.find("Show full transcript") 
+                if start_idx != -1 and end_idx != -1:
+                    # This is a basic extraction - might need refinement
+                    extracted = text[start_idx:end_idx]
+                    # Clean up HTML tags (basic)
+                    import re
+                    clean_text = re.sub(r'<[^>]+>', '', extracted)
+                    if len(clean_text.strip()) > 100:  # If we got substantial content
+                        return clean_text.strip()
+    except Exception as e:
+        print(f"Requests approach failed: {e}")
+    
+    # Second try: Selenium with Streamlit Cloud configuration
+    driver = None
+    try:
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-plugins")
+        options.add_argument("--remote-debugging-port=9222")
+        
+        # Check if we're on Streamlit Cloud (has chromium-browser)
+        try:
+            result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
+            if result.returncode == 0:
+                options.binary_location = '/usr/bin/chromium-browser'
+                service = Service('/usr/bin/chromedriver')
+                driver = webdriver.Chrome(service=service, options=options)
+            else:
+                # Local development
+                driver = webdriver.Chrome(options=options)
+        except Exception:
+            # Final fallback
+            driver = webdriver.Chrome(options=options)
+
+        # Use the driver to get the page
         driver.get(url)
 
         # Wait for the page to load
@@ -78,10 +124,14 @@ def extract_transcript_segments(url: str) -> str:
             return all_text
 
     except Exception as e:
-        return f"❌ Error: {e}"
+        return f"❌ Selenium Error: {e}"
 
     finally:
-        driver.quit()
+        if driver is not None:
+            driver.quit()
+    
+    # If all methods fail
+    return "❌ Failed to extract transcript with all methods"
 
 def save_transcript_to_docx(transcript, episode_title):
     # Add two line breaks before every '>>' except at the start
