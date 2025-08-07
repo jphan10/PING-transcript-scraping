@@ -40,18 +40,13 @@ def fetch_transcript(video_id):
 
 
 def save_transcript_to_docx(transcript, video_title):
-    # Add two line breaks before every '>>' except at the start
-    import re
-    formatted = re.sub(r"(?!^)>>", "\n\n>>", transcript)
     doc = Document()
-    doc.add_paragraph(formatted)
+    doc.add_paragraph(transcript)
     safe_title = "".join(c for c in video_title if c not in "\\/:*?\"<>|")
     filename = f"{safe_title}.docx"
     temp_path = os.path.join(tempfile.gettempdir(), filename)
     doc.save(temp_path)
-    with open(temp_path, "rb") as f:
-        file_bytes = f.read()
-    return file_bytes, filename
+    return temp_path, filename
 
 
 st.title("YouTube Playlist Transcript Fetcher")
@@ -64,22 +59,8 @@ for video in videos:
     with col1:
         st.write(f"{video['title']}")
     with col2:
-        if 'download_state' not in st.session_state:
-            st.session_state['download_state'] = {}
-        if st.session_state['download_state'].get(video['id'], False):
-            with st.spinner('Generating transcript and preparing download...'):
-                transcript = fetch_transcript(video['id'])
-                file_bytes, docx_name = save_transcript_to_docx(transcript, video['title'])
-            st.success('Transcript ready!')
-            st.download_button(
-                label="Download Transcript (.docx)",
-                data=file_bytes,
-                file_name=docx_name,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key=f"download_{video['id']}"
-            )
-            # Reset state after download button is shown
-            st.session_state['download_state'][video['id']] = False
-        else:
-            if st.button(f"Download", key=video['id']):
-                st.session_state['download_state'][video['id']] = True
+        if st.button(f"Download", key=video['id']):
+            transcript = fetch_transcript(video['id'])
+            docx_path, docx_name = save_transcript_to_docx(transcript, video['title'])
+            with open(docx_path, "rb") as f:
+                st.download_button("Download Transcript (.docx)", f, file_name=docx_name)
