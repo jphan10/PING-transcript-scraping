@@ -87,6 +87,8 @@ def save_transcript_to_docx(transcript, episode_title):
     # Add two line breaks before every '>>' except at the start
     import re
     formatted = re.sub(r"(?!^)>>", "\n\n>>", transcript)
+    # Add newline before timestamps (format: 00:00, 00:04, etc.)
+    formatted = re.sub(r"(?!^)(\d{2}:\d{2})", r"\n\1", formatted)
     doc = Document()
     doc.add_paragraph(formatted)
     safe_title = "".join(c for c in episode_title if c not in "\\/:*?\"<>|")

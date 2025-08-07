@@ -1,3 +1,6 @@
 yt-dlp
 youtube-transcript-api
 python-docx
+feedparser
+selenium
+streamlit
