@@ -33,7 +33,7 @@ def get_video_title(video_id):
 def fetch_transcript(video_id):
     api = YouTubeTranscriptApi()
     try:
-        transcript = api.fetch(video_id=video_id, languages=['en'], preserve_formatting=True)
+        transcript = api.fetch(video_id=video_id, languages=['en'], preserve_formatting=False)
         return " ".join([entry.text for entry in transcript])
     except Exception as e:
         return f"[{video_id}] Transcript not available: {e}"
