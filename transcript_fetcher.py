@@ -12,6 +12,11 @@ from docx import Document
 import tempfile
 import os
 import subprocess
+try:
+    from webdriver_manager.chrome import ChromeDriverManager
+    WEBDRIVER_MANAGER_AVAILABLE = True
+except ImportError:
+    WEBDRIVER_MANAGER_AVAILABLE = False
 
 RSS_FEED = "https://omny.fm/shows/ping-proving-grounds/playlists/podcast.rss"
 
@@ -79,12 +84,36 @@ def extract_transcript_segments(url: str) -> str:
         options.add_argument("--disable-plugins")
         options.add_argument("--remote-debugging-port=9222")
         
-        # Check if we're on Streamlit Cloud (has chromium-browser)
+        # Check if we're on Streamlit Cloud (has chromium)
         try:
-            result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
-            if result.returncode == 0:
-                options.binary_location = '/usr/bin/chromium-browser'
-                service = Service('/usr/bin/chromedriver')
+            # Try different chromium paths for different systems
+            chromium_paths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome']
+            chromedriver_paths = ['/usr/bin/chromedriver', '/usr/bin/chromium-driver']
+            
+            chromium_path = None
+            chromedriver_path = None
+            
+            # Find chromium binary
+            for path in chromium_paths:
+                result = subprocess.run(['which', path.split('/')[-1]], capture_output=True, text=True)
+                if result.returncode == 0:
+                    chromium_path = path
+                    break
+            
+            # Find chromedriver binary
+            for path in chromedriver_paths:
+                result = subprocess.run(['which', path.split('/')[-1]], capture_output=True, text=True)
+                if result.returncode == 0:
+                    chromedriver_path = path
+                    break
+            
+            if chromium_path and chromedriver_path:
+                options.binary_location = chromium_path
+                service = Service(chromedriver_path)
+                driver = webdriver.Chrome(service=service, options=options)
+            elif WEBDRIVER_MANAGER_AVAILABLE:
+                # Use webdriver-manager to auto-download ChromeDriver
+                service = Service(ChromeDriverManager().install())
                 driver = webdriver.Chrome(service=service, options=options)
             else:
                 # Local development

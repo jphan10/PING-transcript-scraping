@@ -5,3 +5,4 @@ feedparser
 selenium
 streamlit
 requests
+webdriver-manager
