@@ -40,17 +40,8 @@ def fetch_transcript(video_id):
 
 
 def save_transcript_to_docx(transcript, video_title):
-    # Add two line breaks after every line starting with '>>'
-    formatted = "\n\n".join([line for line in transcript.splitlines() if line.strip().startswith('>>')])
-    # If there are lines not starting with '>>', keep them as is
-    other_lines = [line for line in transcript.splitlines() if not line.strip().startswith('>>')]
-    if formatted:
-        # Add the rest of the transcript after the formatted lines
-        formatted += "\n\n" + "\n".join(other_lines)
-    else:
-        formatted = transcript
     doc = Document()
-    doc.add_paragraph(formatted)
+    doc.add_paragraph(transcript)
     safe_title = "".join(c for c in video_title if c not in "\\/:*?\"<>|")
     filename = f"{safe_title}.docx"
     temp_path = os.path.join(tempfile.gettempdir(), filename)
